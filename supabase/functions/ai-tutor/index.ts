@@ -124,13 +124,9 @@ Deno.serve(async (req) => {
       console.error('Gemini 400 con thinkingConfig', model, await r.text());
       return send(model, false);
     };
-    // Il piano gratuito è spesso sovraccarico (503): si riprova una volta, poi si passa al modello di riserva.
+    // Il piano gratuito è spesso sovraccarico (503): si passa al modello di riserva (o si riprova una volta).
     let res = await call(MODEL);
-    if (res.status === 503) {
-      await new Promise((r) => setTimeout(r, 1500));
-      res = await call(MODEL);
-    }
-    if (res.status === 503 && FALLBACK_MODEL) res = await call(FALLBACK_MODEL);
+    if (res.status === 503) res = await call(FALLBACK_MODEL || MODEL);
     if (res.status === 429 || res.status === 503) return json(429, { error: 'Il tutor AI è molto richiesto in questo momento. Riprova tra un minuto.' });
     if (!res.ok) {
       console.error('Gemini error', res.status, await res.text());
