@@ -12,6 +12,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.8-flash';
 const FALLBACK_MODEL = Deno.env.get('GEMINI_FALLBACK_MODEL') ?? '';
+const CALL_TIMEOUT_MS = 15000;
 const DAILY_LIMIT = Number(Deno.env.get('AI_DAILY_LIMIT') ?? '30');
 const MAX_QUESTION = 2000;
 const HISTORY = 12;
@@ -95,8 +96,10 @@ Deno.serve(async (req) => {
 
   let reply = '';
   try {
-    const call = (model: string) =>
+    // Ogni chiamata ha un tempo massimo: se Gemini non risponde la si tratta come sovraccarico (503).
+    const call = (model: string): Promise<Response> =>
       fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
         body: JSON.stringify({
@@ -104,18 +107,17 @@ Deno.serve(async (req) => {
           contents,
           generationConfig: { temperature: 0.3, maxOutputTokens: 1500 },
         }),
+      }).catch((e) => {
+        console.error('Gemini call failed', model, String(e));
+        return new Response(null, { status: 503 });
       });
-    // Il piano gratuito è spesso sovraccarico (503): si riprova, poi si passa al modello di riserva.
+    // Il piano gratuito è spesso sovraccarico (503): si riprova una volta, poi si passa al modello di riserva.
     let res = await call(MODEL);
-    for (let i = 0; i < 2 && res.status === 503; i++) {
-      await res.body?.cancel();
-      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+    if (res.status === 503) {
+      await new Promise((r) => setTimeout(r, 1500));
       res = await call(MODEL);
     }
-    if (res.status === 503 && FALLBACK_MODEL) {
-      await res.body?.cancel();
-      res = await call(FALLBACK_MODEL);
-    }
+    if (res.status === 503 && FALLBACK_MODEL) res = await call(FALLBACK_MODEL);
     if (res.status === 429 || res.status === 503) return json(429, { error: 'Il tutor AI è molto richiesto in questo momento. Riprova tra un minuto.' });
     if (!res.ok) {
       console.error('Gemini error', res.status, await res.text());
