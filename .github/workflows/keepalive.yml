@@ -1,0 +1,25 @@
+name: Mantieni attivo il database
+
+# Il piano gratuito di Supabase mette in pausa i progetti dopo 7 giorni senza richieste.
+# Questa richiesta di sola lettura, due volte alla settimana, lo evita.
+on:
+  schedule:
+    - cron: '17 6 * * 1,4'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Richiesta al database
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ]; then echo "Segreti non configurati: nulla da fare."; exit 0; fi
+          curl --fail --silent --show-error --max-time 30 \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/profiles?select=id&limit=1" > /dev/null
+          echo "Database raggiunto."

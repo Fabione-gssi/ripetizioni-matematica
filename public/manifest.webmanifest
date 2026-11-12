@@ -1,0 +1,11 @@
+{
+  "name": "Ripetizioni di Matematica",
+  "short_name": "Ripetizioni",
+  "description": "Lezioni, esercizi guidati e verifiche di matematica per il liceo scientifico, con il tuo professore.",
+  "lang": "it",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f6fa",
+  "theme_color": "#2f5fd0",
+  "icons": [{ "src": "./icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}
