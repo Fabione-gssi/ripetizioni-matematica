@@ -11,8 +11,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.8-flash';
-const FALLBACK_MODEL = Deno.env.get('GEMINI_FALLBACK_MODEL') ?? '';
-const CALL_TIMEOUT_MS = 15000;
+const FALLBACK_MODEL = Deno.env.get('GEMINI_FALLBACK_MODEL') ?? 'gemini-3.5-flash-lite';
+const CALL_TIMEOUT_MS = 25000;
 const DAILY_LIMIT = Number(Deno.env.get('AI_DAILY_LIMIT') ?? '30');
 const MAX_QUESTION = 2000;
 const HISTORY = 12;
@@ -97,7 +97,9 @@ Deno.serve(async (req) => {
   let reply = '';
   try {
     // Ogni chiamata ha un tempo massimo: se Gemini non risponde la si tratta come sovraccarico (503).
-    const call = (model: string): Promise<Response> =>
+    // I modelli recenti "ragionano" prima di rispondere: con il livello basso la risposta arriva
+    // in pochi secondi. Il limite di token comprende anche quelli spesi per ragionare.
+    const send = (model: string, lowThinking: boolean): Promise<Response> =>
       fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
         signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
         method: 'POST',
@@ -105,12 +107,23 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: system }] },
           contents,
-          generationConfig: { temperature: 0.3, maxOutputTokens: 1500 },
+          generationConfig: {
+            temperature: 0.3,
+            maxOutputTokens: 4000,
+            ...(lowThinking ? { thinkingConfig: { thinkingLevel: 'low' } } : {}),
+          },
         }),
       }).catch((e) => {
         console.error('Gemini call failed', model, String(e));
         return new Response(null, { status: 503 });
       });
+    // Se il modello non accetta l'impostazione sul ragionamento (400), si ripete senza.
+    const call = async (model: string): Promise<Response> => {
+      const r = await send(model, true);
+      if (r.status !== 400) return r;
+      console.error('Gemini 400 con thinkingConfig', model, await r.text());
+      return send(model, false);
+    };
     // Il piano gratuito è spesso sovraccarico (503): si riprova una volta, poi si passa al modello di riserva.
     let res = await call(MODEL);
     if (res.status === 503) {
