@@ -189,3 +189,6 @@ export interface Submission {
   created_at: string;
   reviewed_at: string | null;
 }
+
+/** Lezioni ed esercizi aggiuntivi di un'unità, tenuti in un file separato (vedi content/index.ts). */
+export type UnitExtra = Pick<Unit, 'lessons' | 'exercises'> & { summary?: string };

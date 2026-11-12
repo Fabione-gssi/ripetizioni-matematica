@@ -5,8 +5,30 @@ import type { Exercise, ExerciseGen, Unit } from './types';
 
 export const newSeed = () => (Math.floor(Math.random() * 2 ** 31) ^ Date.now()) >>> 0;
 
+/**
+ * Ripulisce le scritture poco eleganti che possono nascere dai numeri casuali:
+ * "1x" diventa "x", "(x)^2" diventa "x^2", "0x+5" diventa "5".
+ */
+export function tidy(s: string): string {
+  return s
+    .replace(/(?<![\d,.{}^_a-zA-Z])1(?=[xy](?![a-z]))/g, '')
+    .replace(/\(([xy])\)\^/g, '$1^')
+    .replace(/(?<![\d,.{}^_a-zA-Z])0[xy]\+/g, '');
+}
+
 export function instantiate(g: ExerciseGen, seed: number): Exercise {
-  return { ...g.make(rng(seed)), id: g.id, level: g.level };
+  const ex = g.make(rng(seed));
+  const opts = (o?: Exercise['options']) => o?.map((x) => ({ ...x, md: tidy(x.md), why: x.why && tidy(x.why) }));
+  return {
+    ...ex,
+    text: tidy(ex.text),
+    options: opts(ex.options),
+    hints: ex.hints.map(tidy),
+    solution: ex.solution.map(tidy),
+    steps: ex.steps?.map((st) => ({ ...st, ask: tidy(st.ask), explain: tidy(st.explain), options: opts(st.options)! })),
+    id: g.id,
+    level: g.level,
+  };
 }
 
 /** Interpreta una risposta numerica: accetta virgola o punto decimale e frazioni "a/b". */

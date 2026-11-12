@@ -8,7 +8,7 @@ import { unitById, units } from '../../content';
 import { api, useLoad, useMe } from '../../lib/app';
 import type { Attempt, Mode, TestResult } from '../../lib/types';
 
-type Tab = 'panoramica' | 'esercizi' | 'verifiche' | 'ai' | 'foto' | 'messaggi';
+type Tab = 'panoramica' | 'lezioni' | 'esercizi' | 'verifiche' | 'ai' | 'foto' | 'messaggi';
 const MODE_LABEL: Record<Mode, string> = { guided: 'guidato', hints: 'con suggerimenti', solo: 'autonomo', test: 'verifica' };
 const pct = (a: number, b: number) => (b ? `${Math.round((100 * a) / b)}%` : '—');
 
@@ -77,6 +77,62 @@ function Overview({ studentId }: { studentId: string }) {
                 })}
               </div>
             )}
+          </>
+        );
+      }}
+    </Loadable>
+  );
+}
+
+/** Dettaglio delle lezioni: per ogni unità, quali sono state completate e quando. */
+function Lessons({ studentId, year }: { studentId: string; year: number | null }) {
+  const data = useLoad(() => api.listProgress(studentId), [studentId]);
+  return (
+    <Loadable state={data}>
+      {(progress) => {
+        const when = new Map(progress.map((p) => [p.lesson_id, p.completed_at]));
+        // Prima le unità dell'anno dello studente, poi le altre in cui ha svolto qualcosa.
+        const shown = units.filter((u) => year === null || u.year === year || u.lessons.some((l) => when.has(l.id)));
+        const recent = [...progress].sort((a, b) => b.completed_at.localeCompare(a.completed_at)).slice(0, 5);
+        return (
+          <>
+            {recent.length > 0 && (
+              <div className="card">
+                <b>Ultime lezioni svolte</b>
+                {recent.map((p) => {
+                  const hit = units.flatMap((u) => u.lessons.map((l) => ({ u, l }))).find((x) => x.l.id === p.lesson_id);
+                  return (
+                    <p className="small" key={p.lesson_id}>
+                      {hit ? `${hit.u.title} · ${hit.l.title}` : p.lesson_id} <span className="muted">· {fmtDate(p.completed_at)}</span>
+                    </p>
+                  );
+                })}
+              </div>
+            )}
+            <div className="list">
+              {shown.map((u) => {
+                const n = u.lessons.filter((l) => when.has(l.id)).length;
+                return (
+                  <details className="card" key={u.id} open={n > 0 && n < u.lessons.length}>
+                    <summary>
+                      <span className={`pill ${n === u.lessons.length ? 'ok' : ''}`}>
+                        {n}/{u.lessons.length}
+                      </span>{' '}
+                      {u.year}° · {u.title}
+                    </summary>
+                    {u.lessons.map((l, i) => {
+                      const at = when.get(l.id);
+                      return (
+                        <p className="small" key={l.id}>
+                          <span className={`pill ${at ? 'ok' : ''}`}>{at ? '✓' : '·'}</span> {i + 1}. {l.title}{' '}
+                          <span className="muted">· {at ? `completata il ${fmtDate(at)}` : 'non ancora svolta'}</span>
+                        </p>
+                      );
+                    })}
+                  </details>
+                );
+              })}
+            </div>
           </>
         );
       }}
@@ -195,6 +251,7 @@ export function StudentDetail() {
               onChange={setTab}
               tabs={[
                 { id: 'panoramica', label: 'Panoramica' },
+                { id: 'lezioni', label: 'Lezioni' },
                 { id: 'esercizi', label: 'Esercizi' },
                 { id: 'verifiche', label: 'Verifiche' },
                 { id: 'foto', label: 'Foto' },
@@ -203,6 +260,7 @@ export function StudentDetail() {
               ]}
             />
             {tab === 'panoramica' && <Overview studentId={studentId} />}
+            {tab === 'lezioni' && <Lessons studentId={studentId} year={link.other?.school_year ?? null} />}
             {tab === 'esercizi' && <Attempts studentId={studentId} />}
             {tab === 'verifiche' && <Tests studentId={studentId} />}
             {tab === 'foto' && <Submissions studentId={studentId} canReview />}

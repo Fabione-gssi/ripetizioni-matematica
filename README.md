@@ -124,7 +124,10 @@ Ogni unità è un file in `src/content/anno3/` o `anno4/` con:
   (a scelta multipla con la spiegazione di ogni errore tipico, oppure numerica), suggerimenti,
   soluzione a passi e, dove previsto, i passi guidati.
 
-Il testo usa Markdown essenziale e LaTeX tra `$…$`. Per aggiungere un'unità: crea il file, importalo
+Le unità più ricche sono divise in due file: quello di base (per esempio `parabola.ts`) e quello di
+approfondimento (`parabola.piu.ts`), che `src/content/index.ts` unisce con la funzione `con(...)`.
+
+Il testo usa Markdown essenziale (senza tabelle) e LaTeX tra `$…$`. Per aggiungere un'unità: crea il file, importalo
 in `src/content/index.ts` e aggiungilo all'elenco. Per aggiungere fisica o altri anni basta aggiungere
 unità (per un nuovo anno va esteso il tipo `year` in `src/lib/types.ts` e il selettore in `Home.tsx`).
 

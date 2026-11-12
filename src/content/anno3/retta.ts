@@ -225,7 +225,7 @@ Il punto di intersezione di due rette incidenti si trova risolvendo il **sistema
             [m(frac(a, b)), R`Manca il segno meno: $m=-\dfrac ab$.`],
             [m(frac(-b, a)), R`Hai invertito il rapporto: $m=-\dfrac ab$.`],
             [m(a), 'Nella forma implicita il coefficiente di $x$ non è $m$: ricava prima $y$.'],
-          ], [m(frac(-c, b)), m(frac(b, a))]),
+          ], [m(frac(-c, b)), m(frac(b, a)), m(frac(-2 * a, b)), m(0)]),
           hints: ['Ricava $y$ per passare alla forma esplicita.', R`In alternativa usa $m=-\dfrac ab$.`],
           solution: [`Ricaviamo $y$: ${m(`${b}y=${-a}x${sg(-c)}`)}.`, `Dividendo per ${m(b)}: il coefficiente di $x$ è ${m(`m=${frac(-a, b)}`)} (e l'ordinata all'origine è ${m(`q=${frac(-c, b)}`)}).`],
         };
