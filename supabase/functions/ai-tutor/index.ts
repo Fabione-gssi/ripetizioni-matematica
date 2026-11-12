@@ -6,10 +6,12 @@
 //   GEMINI_API_KEY   chiave gratuita da https://aistudio.google.com/apikey
 // Facoltativi:
 //   GEMINI_MODEL     modello da usare (predefinito sotto)
-//   AI_DAILY_LIMIT   numero massimo di domande al giorno per studente (predefinito 30)
+//   GEMINI_FALLBACK_MODEL  modello di riserva se il primo è sovraccarico
+//   AI_DAILY_LIMIT  numero massimo di domande al giorno per studente (predefinito 30)
 import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const MODEL = Deno.env.get('GEMINI_MODEL') ?? 'gemini-3.8-flash';
+const FALLBACK_MODEL = Deno.env.get('GEMINI_FALLBACK_MODEL') ?? '';
 const DAILY_LIMIT = Number(Deno.env.get('AI_DAILY_LIMIT') ?? '30');
 const MAX_QUESTION = 2000;
 const HISTORY = 12;
@@ -93,16 +95,28 @@ Deno.serve(async (req) => {
 
   let reply = '';
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents,
-        generationConfig: { temperature: 0.3, maxOutputTokens: 1500 },
-      }),
-    });
-    if (res.status === 429) return json(429, { error: 'Il tutor AI è molto richiesto in questo momento. Riprova tra un minuto.' });
+    const call = (model: string) =>
+      fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents,
+          generationConfig: { temperature: 0.3, maxOutputTokens: 1500 },
+        }),
+      });
+    // Il piano gratuito è spesso sovraccarico (503): si riprova, poi si passa al modello di riserva.
+    let res = await call(MODEL);
+    for (let i = 0; i < 2 && res.status === 503; i++) {
+      await res.body?.cancel();
+      await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+      res = await call(MODEL);
+    }
+    if (res.status === 503 && FALLBACK_MODEL) {
+      await res.body?.cancel();
+      res = await call(FALLBACK_MODEL);
+    }
+    if (res.status === 429 || res.status === 503) return json(429, { error: 'Il tutor AI è molto richiesto in questo momento. Riprova tra un minuto.' });
     if (!res.ok) {
       console.error('Gemini error', res.status, await res.text());
       return json(502, { error: 'Il tutor AI non è al momento raggiungibile.' });
